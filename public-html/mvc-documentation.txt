@@ -1,0 +1,199 @@
+"Создание проекта"
+1. Без изменений параметров сервера, пользователь сможет капаться в наших папках
+
+2. Весь проект делим на src (скрипты закрыты) и public (то, что доступно пользователю)
+
+3. Настраиваем openServer Apache
+(Дополнительно->Конфигурация->Apache->vhost.conf->DocumentRoot  "%hostdir%/public/")
+"public - название директории, где хранится клиентская часть"
+
+4. Настраиваем openServer Njings
+(Дополнительно->Конфигурация->njings->vhost.conf->DocumentRoot  "%hostdir%/public/")
+
+"Создание обработчика для всех запросов index.php"
+1. Открытие проекта через встроенный сервер с одним оработчиком
+(public/ php -S localhost:8080 index.php) 
+
+2. apache
+(public/создаем файл .htaccess)
+(Добавляем первичные настройки, правила перенаправления) 
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME}% !-f
+RewriteCond %{REQUEST_FILENAME}% !-d
+
+RewriteRule ^(.*)$ index.php [L,QSA] (любой запрос передается на index.php)
+</IfModule>
+
+(переходим к njings)
+3. Njings
+location / {
+	# Force index.php routinh (if not found)
+	# try_files $uri $uri/ /index.php?$query_string;
+}
+
+"Перенаправление"
+1. Позволяет создавать заропросы вида /book
+(Изначально было бы book.php)
+
+2. Важно, что бы обработчик понимал, что делать с запросами
+
+"MVC струтура проекта"
+1. Если взять весь проект, то его можно поделить на 3 части
+(Model - бизнес-логика, формирование данных для view)
+(View - то, что видит пользователь в браузере)
+(Controller - объединение model+view )
+
+2. Как работает
+(Controller срабатывает на запрос -> контроллер обращается к модели и указывает, что делать)
+(Модель собирает данные -> контроллер получает данные, встраивает их view)
+(View отображает данные)
+
+"Как MVC связан с index.php"
+1. Приходит запрос на index.php (request_uri)
+
+2. index.php обращается к определенному контроллеру через роутер
+(Запрос -> index.php -> роутер -> Контроллер)
+
+3. index.php - FRONT Controller (единственный на проект)
+(Из-за принятия и передачи данных другим контроллерам)
+
+
+"Подключение autoload"
+1. Настройка в composer.json
+
+2. require_once __DIR__ . '../vendor/autoload.php';
+(__DIR__ - относително текущей директории, экранирование с выходом из текущей директории)
+
+3. namespace Web\\Project\\ - ассоциация с src 
+(Web\\Project\\Controllers - указание папки)
+(По папке контроллеры можно будет выбрать класс)
+
+"Строение роутера"
+1. Запрос - FRONT controller - router 
+(Router создает нужный объект, вызывает у него метод)
+(Метод обращается к модели)
+
+2. Рассматриваем примитивный роутер
+
+3. Запрос на главную страницу (/)
+(Роутер будет создавать объект indexContrler, вызываь метод indexAction())
+(indexAction возращает главную страницу)
+
+4. Виды запросов
+(Запрос из одной части /books - BooksController -> indexAction())
+(Несколько частей /books/add - BooksController->addAction())
+(Первая часть - название контроллера, вторая - название метода)
+
+5. Стурктура проекта
+/ indexController->indexAction() - главная страница
+/books BooksController->indexAction() - страница с книгами
+/books/show/id->BooksController->showAction(id) - страница с конкретной книгой по id
+
+6. Главное правило
+(Необходимо заранее прописывать, что и как будет выдаваться )
+
+"Пишем роутер"
+<?php
+
+namespace Web\Project\Core;
+
+class Router
+{
+	function run()
+	{
+		$controller = 'index';
+		$action = 'index';
+		$params = null;
+		(Значения по умолчанию)
+
+		$server = $_SERVER;
+		$uri = $server['REQUEST_URI']; //books/show/3
+		(Обращение к параметрам сервера)
+
+		$routes = explode('/', $uri);
+		// ['', 'books', 'show', '3'];
+		(Разделение url запроса)
+
+		if (!empty($routes[1])) {
+			$controller = $routes[1];
+		}
+		if (!empty($routes[2])) {
+			$action = $routes[2];
+		}
+		if (!empty($routes[3])) {
+			$params = $routes[3];
+		}
+		(Присвоение значений)
+
+		$controller = 'Web\Project\Controllers\\' . 
+			ucfirst(strtolower($controller)) . 'Controller';
+
+		$action = strtolower($action) . 'Action';	
+
+		$controller = new $controller();
+		$controller->$action($params);
+	}
+}
+
+1. В роутере получаем uri
+$uri = $server['REQUEST_URI']; //books/show/3
+
+2. Делим строчку uri, чтобы получить массив данных из uri
+$routes = explode('/', $uri);
+
+
+
+
+
+"Шаблонизация"
+1. Есть несолько страниц с одинаковой информацией
+(Одинаковый header и futer)
+
+2. Есть изменяемые части
+(Мы будем содавать один файл с повторами)
+
+Контроллер будет брать данные из модели, встраивать их 
+ отдавать 
+views - встраиваемые файлы, видные в конце
+
+3. template.php - шаблон для нескольких страниц
+(Повторяющееся содержимое, в которое будет встроены страницы)
+
+
+
+"Генераторы страниц"
+1. Генерируют и возвращают страницы 
+(Происходит через буфер-память)
+
+2. Структуру html пишем исключительно в шаблоне (template.php)
+
+3. В подключаемых файлах не прописываем html структуру (main.php, book.php)
+
+4. Саму генерацию выводим в родительский класс Controller.php
+
+5. Создание страниц в буфере
+protected function render_page($content, $template, $data=[]) // встраиваемые данные, шаблон, доп. инфа для template
+	{
+		extract($data); // разбор массива на переменные
+		// создает переменную $title = 'Главная'
+		ob_start(); // буфеизация в память
+		include_once __DIR__ . '/../Views/' .$template;
+		$page = ob_get_contents();
+		ob_end_clean();
+		return $page;
+	}
+(Переменные переданные в функцию автоматически подставятся на нужное место)
+<title><?php echo $title ?></title> "Подстроятся данные из массива data"
+
+<div>
+	<?php include_once $content ?> "Подстроится переменная из функции"
+</div>
+
+"Dao - models"
+1. В dao классах перечисляются методы, которые CRUD
+(Добавляют данные в хранилища)
+(Извлекают данные)
+(Удаляют данные)
+
+

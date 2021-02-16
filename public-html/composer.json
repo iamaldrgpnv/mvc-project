@@ -1,0 +1,9 @@
+{
+	"name": "alexander/public-html",
+	"require": {},
+	"autoload": {
+		"psr-4": {
+			"Web\\Project\\": "src/"
+		}
+	}
+}
